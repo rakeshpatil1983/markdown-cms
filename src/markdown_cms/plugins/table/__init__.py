@@ -1,0 +1,1 @@
+"""Table plugin initialization."""
