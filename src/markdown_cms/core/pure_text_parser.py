@@ -1531,9 +1531,12 @@ def parse_callout_alerts(text: str) -> str:
     # Pattern to match multi-line blockquote with alert marker
     # > [!TYPE] Optional Title
     # > Content line 1
-    # > Content line 2
+    # >
+    # > Content line 2 (table rows, empty continuation lines, etc.)
     # Also matches single-line alerts (no continuation lines)
-    pattern = r"> \[!(INFO|SUCCESS|WARNING|ERROR|DANGER)\]([^\n]*)\n((?:> [^\n]*\n?)+)?"
+    pattern = (
+        r"> \[!(INFO|SUCCESS|WARNING|ERROR|DANGER)\]([^\n]*)\n((?:>[ \t]?[^\n]*\n?)+)?"
+    )
 
     def replace_alert(match):
         alert_type_key = match.group(1)
@@ -1550,6 +1553,8 @@ def parse_callout_alerts(text: str) -> str:
             for line in content_lines.split("\n"):
                 if line.startswith("> "):
                     lines.append(line[2:])  # Remove "> "
+                elif line.rstrip() == ">":
+                    lines.append("")  # Empty blockquote continuation line
                 elif line.strip():  # Non-empty line without >
                     lines.append(line)
 
