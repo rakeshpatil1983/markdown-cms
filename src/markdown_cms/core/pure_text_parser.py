@@ -42,6 +42,10 @@ import re
 
 from markdown_it import MarkdownIt
 
+# Module-level store so inline parsers (e.g. parse_callout_alerts) can
+# resolve code-block placeholders that were extracted earlier in the pipeline.
+_current_code_blocks: list = []
+
 # Create a markdown renderer for processing content inside blocks
 # Enable GFM features like tables, strikethrough, task lists
 _md_renderer = MarkdownIt(
@@ -115,6 +119,8 @@ def parse_pure_text_syntax(text: str) -> str:
         HTML with pure text syntax converted
     """
 
+    global _current_code_blocks
+
     # Normalize line endings (Windows \r\n -> Unix \n)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
 
@@ -130,6 +136,10 @@ def parse_pure_text_syntax(text: str) -> str:
     # First: Match triple backtick code blocks (fenced code)
     # Use non-greedy match for content between backticks
     text = re.sub(r"```.*?```", save_code_block, text, flags=re.DOTALL)
+
+    # Expose code_blocks so inline parsers (parse_callout_alerts, etc.) can
+    # resolve placeholders inside already-extracted block content.
+    _current_code_blocks = code_blocks
 
     # Second: Match inline code (single backticks) - must protect from parsing
     # Pattern: `content` where content doesn't contain backticks
@@ -149,6 +159,8 @@ def parse_pure_text_syntax(text: str) -> str:
     text = parse_feature_blocks(text)  # Individual features first
     text = parse_features_blocks(text)  # Then feature containers
     text = parse_cta_blocks(text)
+    # Admonition blocks (:::success, :::note, etc.) — before form blocks
+    text = parse_admonition_blocks(text)
     # HTMX-enabled form blocks (process before individual inputs)
     text = parse_form_blocks(text)
     # Standard components
@@ -200,9 +212,10 @@ def parse_pure_text_syntax(text: str) -> str:
     for i, inline_code in enumerate(inline_codes):
         text = text.replace(f"<!--INLINE_CODE_{i}-->", inline_code)
 
-    # Step 5: Restore code blocks
+    # Step 5: Restore code blocks (skip any already resolved inside alerts)
     for i, code_block in enumerate(code_blocks):
-        text = text.replace(f"<!--CODE_BLOCK_{i}-->", code_block)
+        if code_block is not None:
+            text = text.replace(f"<!--CODE_BLOCK_{i}-->", code_block)
 
     return text
 
@@ -401,6 +414,49 @@ def parse_cta_blocks(text: str) -> str:
     return re.sub(pattern, replace_cta, text, flags=re.DOTALL)
 
 
+def parse_admonition_blocks(text: str) -> str:
+    """
+    Parse fenced admonition/callout blocks:
+
+        :::success Optional Title
+        Content with **markdown**
+        :::
+
+        :::note
+        A plain note with no title.
+        :::
+
+    Supported types: success, note, info, warning, danger, error
+    Rendered using the same alert classes as > [!TYPE] alerts.
+    """
+    _type_map = {
+        "success": "success",
+        "note": "info",
+        "info": "info",
+        "warning": "warning",
+        "danger": "error",
+        "error": "error",
+    }
+    type_names = "|".join(_type_map.keys())
+    pattern = rf":::({type_names})([ \t]+[^\n]*)?\n(.*?)\n:::(?!\w)"
+
+    def replace_admonition(match):
+        admonition_type = match.group(1).lower()
+        title = (match.group(2) or "").strip()
+        content = match.group(3).strip()
+
+        alert_class = _type_map.get(admonition_type, "info")
+        html = f'<div class="alert alert-{alert_class}" role="alert">\n'
+        if title:
+            html += f'<div class="alert-title">{title}</div>\n'
+        if content:
+            html += _md_renderer.render(content)
+        html += "</div>\n"
+        return html
+
+    return re.sub(pattern, replace_admonition, text, flags=re.DOTALL)
+
+
 def parse_form_blocks(text: str) -> str:
     """
     Parse HTMX-enabled form blocks
@@ -516,6 +572,30 @@ def _process_form_inputs(content: str, form_id: str) -> str:
 
     content = re_inner.sub(
         pattern_minmax, replace_input_minmax, content, flags=re_inner.MULTILINE
+    )
+
+    # Process select inputs: ? Label (select opt1,opt2,...) [Display Label]
+    pattern_select_q = r"^\? (.+?) \(select (.+?)\)(?: \[(.+?)\])?$"
+
+    def replace_select_q(match):
+        field_name = make_name(match.group(1))
+        options_str = match.group(2)
+        display_label = match.group(3) or match.group(1)
+        options = [o.strip() for o in options_str.split(",")]
+
+        options_html = '<option value="" selected disabled>Select...</option>\n'
+        for opt in options:
+            val = opt.lower().replace(" ", "_")
+            options_html += f'<option value="{val}">{opt}</option>\n'
+
+        return f"""<div class="form-group">
+<label class="form-label">{display_label}</label>
+<select name="{field_name}" class="form-select" required>
+{options_html}</select>
+</div>"""
+
+    content = re_inner.sub(
+        pattern_select_q, replace_select_q, content, flags=re_inner.MULTILINE
     )
 
     # Process simple inputs: ? Label (type) [placeholder]
@@ -1560,12 +1640,40 @@ def parse_callout_alerts(text: str) -> str:
 
             content = "\n".join(lines).strip()
 
+        def _resolve_code_blocks(text):
+            """Resolve <!--CODE_BLOCK_N--> placeholders inside alert content.
+
+            Code blocks inside blockquotes are stored with '> ' prefixes on each
+            interior line (e.g. '> V = I × R'). Strip those prefixes so the
+            restored code block renders correctly inside the alert div.
+            """
+
+            def _restore(m):
+                idx = int(m.group(1))
+                if idx >= len(_current_code_blocks):
+                    return m.group(0)
+                block = _current_code_blocks[idx]
+                clean_lines = []
+                for line in block.split("\n"):
+                    if line.startswith("> "):
+                        clean_lines.append(line[2:])
+                    elif line.rstrip() == ">":
+                        clean_lines.append("")
+                    else:
+                        clean_lines.append(line)
+                # Mark as resolved so the outer restore loop skips it
+                _current_code_blocks[idx] = None
+                return "\n".join(clean_lines)
+
+            return re.sub(r"<!--CODE_BLOCK_(\d+)-->", _restore, text)
+
         # Build alert HTML with semantic classes
         html = f'<div class="alert alert-{alert_class}" role="alert">\n'
 
         if title and content:
             # Has both title and body content
             html += f'<div class="alert-title">{title}</div>\n'
+            content = _resolve_code_blocks(content)
             content_html = _md_renderer.render(content)
             html += content_html
         elif title:
@@ -1573,6 +1681,7 @@ def parse_callout_alerts(text: str) -> str:
             content_html = _md_renderer.render(title)
             html += content_html
         elif content:
+            content = _resolve_code_blocks(content)
             content_html = _md_renderer.render(content)
             html += content_html
 

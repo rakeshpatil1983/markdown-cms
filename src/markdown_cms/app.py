@@ -56,6 +56,16 @@ def create_app():
                 integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz",
                 crossorigin="anonymous",
             ),
+            # MathJax for rendering $...$ inline and $$...$$ display math
+            Script(
+                "window.MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] } };",
+                type="text/javascript",
+            ),
+            Script(
+                src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js",
+                id="MathJax-script",
+                **{"async": True},
+            ),
         ),
     )
 
