@@ -267,7 +267,13 @@ def setup_routes(app):
             return Response(f"Error rendering page: {str(e)}", status_code=500)
 
 
-def _build_head(title: str, css_content: str, theme_config: dict):
+def _build_head(
+    title: str,
+    css_content: str,
+    theme_config: dict,
+    canonical_url: str = "",
+    description: str = "",
+):
     """Build the common <head> section for all layouts.
 
     Loads CSS/JS based on theme configuration - supports Bootstrap, Bulma,
@@ -278,6 +284,14 @@ def _build_head(title: str, css_content: str, theme_config: dict):
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1"),
     ]
+
+    # SEO: description meta tag
+    if description:
+        head_elements.append(Meta(name="description", content=description))
+
+    # SEO: canonical URL to prevent duplicate content issues
+    if canonical_url:
+        head_elements.append(Link(rel="canonical", href=canonical_url))
 
     # Load framework CSS if specified
     framework_css = theme_config.get("framework_css", "")
@@ -487,6 +501,19 @@ def render_with_layout(
     config = get_config()
     site_config = config.get_site_config()
 
+    # Build canonical URL (always use base_url + clean path, no trailing slash except home)
+    base_url = site_config.get("base_url", "").rstrip("/")
+    if base_url:
+        if not page_path or page_path == "index":
+            canonical_url = f"{base_url}/"
+        else:
+            canonical_url = f"{base_url}/{page_path}"
+    else:
+        canonical_url = ""
+
+    # Description: prefer page-level, fall back to site-level
+    description = metadata.get("description", site_config.get("description", ""))
+
     # Load theme configuration
     theme_config = config.get_theme_config()
 
@@ -546,7 +573,7 @@ def render_with_layout(
 
     mobile_toggles = _build_mobile_toggles()
     return Html(
-        _build_head(title, css_content, theme_config),
+        _build_head(title, css_content, theme_config, canonical_url, description),
         Body(
             _build_header(),
             mobile_toggles[0],  # Left toggle
