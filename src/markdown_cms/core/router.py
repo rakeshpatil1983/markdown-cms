@@ -1,5 +1,6 @@
 """Router setup for Markdown CMS."""
 
+import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -13,6 +14,20 @@ from .parser import MarkdownParser
 from .sidebar import build_sidebar_tree, render_left_sidebar, render_toc
 
 
+def _collect_pages(pages_path: Path) -> list[str]:
+    """Collect all .md page paths relative to pages_path, excluding index and private files."""
+    paths = []
+    for md_file in sorted(pages_path.rglob("*.md")):
+        rel = md_file.relative_to(pages_path).as_posix()
+        # Skip private/template files and index
+        if Path(rel).name.startswith("_"):
+            continue
+        # Strip .md extension
+        url_path = rel[:-3] if rel.endswith(".md") else rel
+        paths.append(url_path)
+    return paths
+
+
 def setup_routes(app):
     """Setup all application routes."""
 
@@ -23,6 +38,75 @@ def setup_routes(app):
     setup_admin_routes(app)
 
     parser = MarkdownParser()
+
+    @app.get("/robots.txt")
+    def robots_txt():
+        """Serve robots.txt with sitemap reference."""
+        config = get_config()
+        site_config = config.get_site_config()
+        base_url = site_config.get("base_url", "").rstrip("/")
+        content = "User-agent: *\nAllow: /\n"
+        if base_url:
+            content += f"\nSitemap: {base_url}/sitemap.xml\n"
+        return Response(content, media_type="text/plain")
+
+    @app.get("/sitemap.xml")
+    def sitemap_xml():
+        """Generate sitemap.xml from all pages."""
+        config = get_config()
+        site_config = config.get_site_config()
+        base_url = site_config.get("base_url", "").rstrip("/")
+        today = datetime.date.today().isoformat()
+
+        urls = []
+        for url_path in _collect_pages(config.pages_path):
+            if url_path == "index":
+                loc = f"{base_url}/"
+                priority = "1.0"
+            else:
+                loc = f"{base_url}/{url_path}"
+                # Top-level pages get higher priority
+                priority = "0.8" if "/" not in url_path else "0.6"
+            urls.append(
+                f"  <url>\n"
+                f"    <loc>{loc}</loc>\n"
+                f"    <lastmod>{today}</lastmod>\n"
+                f"    <priority>{priority}</priority>\n"
+                f"  </url>"
+            )
+
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            + "\n".join(urls)
+            + "\n</urlset>"
+        )
+        return Response(xml, media_type="application/xml")
+
+    @app.get("/llms.txt")
+    def llms_txt():
+        """Serve llms.txt — machine-readable site index for LLM crawlers."""
+        config = get_config()
+        site_config = config.get_site_config()
+        base_url = site_config.get("base_url", "").rstrip("/")
+        title = site_config.get("title", "Site")
+        description = site_config.get("description", "")
+
+        lines = [f"# {title}"]
+        if description:
+            lines.append(f"\n> {description}\n")
+        lines.append("")
+
+        for url_path in _collect_pages(config.pages_path):
+            if url_path == "index":
+                loc = f"{base_url}/"
+            else:
+                loc = f"{base_url}/{url_path}"
+            # Use path as a readable label
+            label = url_path.replace("/", " > ").replace("-", " ").title()
+            lines.append(f"- [{label}]({loc})")
+
+        return Response("\n".join(lines), media_type="text/plain")
 
     @app.get("/")
     def home():
