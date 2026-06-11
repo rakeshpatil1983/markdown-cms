@@ -332,13 +332,17 @@ def _build_head(
         )
     )
 
-    # Mermaid for diagram rendering (flowcharts, sequence diagrams, etc.)
+    # Mermaid for diagram rendering — deferred so it doesn't block page load
     head_elements.append(
-        Script(src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js")
+        Script(
+            src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js",
+            defer="true",
+        )
     )
     head_elements.append(
         Script(
-            "mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#0d7a8a', primaryTextColor: '#1a2332', lineColor: '#2a5f6f', secondaryColor: '#e8f4f6', tertiaryColor: '#f0f8fa' } });"
+            "document.addEventListener('DOMContentLoaded', function() { if (typeof mermaid !== 'undefined') { mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#0d7a8a', primaryTextColor: '#1a2332', lineColor: '#2a5f6f', secondaryColor: '#e8f4f6', tertiaryColor: '#f0f8fa' } }); } });",
+            defer="true",
         )
     )
 
