@@ -40,6 +40,9 @@ class MarkdownParser:
         # Convert to HTML
         html = self.md.render(content_with_components)
 
+        # Convert mermaid code blocks to mermaid divs for client-side rendering
+        html = self._render_mermaid_blocks(html)
+
         # Add id attributes to h2/h3 tags for TOC anchor links
         html = self._add_heading_ids(html)
 
@@ -135,6 +138,23 @@ class MarkdownParser:
         slug = re.sub(r"[^\w\s-]", "", text.lower())
         slug = re.sub(r"[\s]+", "-", slug).strip("-")
         return slug
+
+    def _render_mermaid_blocks(self, html: str) -> str:
+        """Replace <pre><code class="language-mermaid">...</code></pre> with <div class="mermaid">."""
+        import html as html_module
+
+        def replace_block(match):
+            encoded = match.group(1)
+            # markdown-it HTML-encodes the content inside <code>; decode it back
+            decoded = html_module.unescape(encoded)
+            return f'<div class="mermaid">{decoded}</div>'
+
+        return re.sub(
+            r'<pre><code class="language-mermaid">(.*?)</code></pre>',
+            replace_block,
+            html,
+            flags=re.DOTALL,
+        )
 
     def _add_heading_ids(self, html: str) -> str:
         """Add id attributes to h2 and h3 tags for TOC anchor links."""

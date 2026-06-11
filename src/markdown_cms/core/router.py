@@ -332,6 +332,16 @@ def _build_head(
         )
     )
 
+    # Mermaid for diagram rendering (flowcharts, sequence diagrams, etc.)
+    head_elements.append(
+        Script(src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js")
+    )
+    head_elements.append(
+        Script(
+            "mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#0d7a8a', primaryTextColor: '#1a2332', lineColor: '#2a5f6f', secondaryColor: '#e8f4f6', tertiaryColor: '#f0f8fa' } });"
+        )
+    )
+
     # Mobile sidebar toggle script
     head_elements.append(
         Script(
