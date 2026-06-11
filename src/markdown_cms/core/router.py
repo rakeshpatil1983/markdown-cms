@@ -341,7 +341,35 @@ def _build_head(
     )
     head_elements.append(
         Script(
-            "document.addEventListener('DOMContentLoaded', function() { if (typeof mermaid !== 'undefined') { mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#e8f4f6', primaryTextColor: '#1a2332', primaryBorderColor: '#0d7a8a', lineColor: '#2a5f6f', secondaryColor: '#d0edf2', tertiaryColor: '#f0f8fa', edgeLabelBackground: '#ffffff', clusterBkg: '#e8f4f6', titleColor: '#1a2332', nodeTextColor: '#1a2332' } }); } });",
+            """document.addEventListener('DOMContentLoaded', function() {
+  if (typeof mermaid === 'undefined') return;
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    fontSize: 16,
+    flowchart: { useMaxWidth: true, htmlLabels: true },
+    sequence: { useMaxWidth: true },
+    themeVariables: {
+      primaryColor: '#e8f4f6',
+      primaryTextColor: '#1a2332',
+      primaryBorderColor: '#0d7a8a',
+      lineColor: '#2a5f6f',
+      secondaryColor: '#d0edf2',
+      tertiaryColor: '#f0f8fa',
+      edgeLabelBackground: '#ffffff',
+      clusterBkg: '#e8f4f6',
+      titleColor: '#1a2332',
+      nodeTextColor: '#1a2332',
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      fontSize: '16px'
+    }
+  });
+  // Remove fixed width so SVG scales to container
+  document.querySelectorAll('.mermaid svg').forEach(function(svg) {
+    svg.removeAttribute('width');
+    svg.style.maxWidth = '100%';
+  });
+});""",
             defer="true",
         )
     )
