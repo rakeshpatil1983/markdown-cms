@@ -341,7 +341,7 @@ def _build_head(
     )
     head_elements.append(
         Script(
-            "document.addEventListener('DOMContentLoaded', function() { if (typeof mermaid !== 'undefined') { mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#0d7a8a', primaryTextColor: '#1a2332', lineColor: '#2a5f6f', secondaryColor: '#e8f4f6', tertiaryColor: '#f0f8fa' } }); } });",
+            "document.addEventListener('DOMContentLoaded', function() { if (typeof mermaid !== 'undefined') { mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#e8f4f6', primaryTextColor: '#1a2332', primaryBorderColor: '#0d7a8a', lineColor: '#2a5f6f', secondaryColor: '#d0edf2', tertiaryColor: '#f0f8fa', edgeLabelBackground: '#ffffff', clusterBkg: '#e8f4f6', titleColor: '#1a2332', nodeTextColor: '#1a2332' } }); } });",
             defer="true",
         )
     )
