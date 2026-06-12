@@ -357,9 +357,9 @@ def _build_head(
       secondaryColor: '#d0edf2',
       tertiaryColor: '#f0f8fa',
       edgeLabelBackground: '#ffffff',
-      clusterBkg: '#e8f4f6',
+      clusterBkg: '#f0f8fa',
+      clusterBorder: '#0d7a8a',
       titleColor: '#1a2332',
-      nodeTextColor: '#1a2332',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       fontSize: '16px'
     }
